@@ -32,7 +32,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Використовуємо cookies для доступу до обмежених відео
         'cookiefile': 'www.youtube.com_cookies.txt',
         'quiet': True,
-        'ffmpeg_location': r'C:\ffmpeg\bin\ffmpeg.exe'
+        'ffmpeg_location': '/usr/bin/ffmpeg.exe'
     }
 
     try:

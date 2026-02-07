@@ -1,28 +1,23 @@
 import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
-import yt_dlp
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor
-import functools
+import yt_dlp
 
-# Завантажуємо .env
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# ID користувачів, яким дозволено використовувати бота
 ALLOWED_USERS = [650258742, 935498213, 1419884435]
 
-# Обробка повідомлень
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ALLOWED_USERS:
-        await update.message.reply_text("❌ Немає доступу")
+        await update.message.reply_text("Немає доступу")
         return
 
     url = update.message.text.strip()
     if "youtube.com" not in url and "youtu.be" not in url:
-        await update.message.reply_text("❌ Це не YouTube лінк")
+        await update.message.reply_text("Це не YouTube лінк")
         return
 
     await update.message.reply_text("⏳ Завантажую...")
@@ -30,31 +25,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": "audio.%(ext)s",
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
-        "cookiefile": "cookies.txt",  # потрібен для 18+ відео
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+        }],
+        "cookiefile": "cookies.txt",  # якщо потрібні cookies для 18+
         "quiet": True,
     }
 
     try:
-        # Виконуємо завантаження в окремому потоці, щоб не блокувати Telegram
-        loop = context.application.loop
-        executor = ThreadPoolExecutor(max_workers=1)
-        func = functools.partial(yt_dlp.YoutubeDL(ydl_opts).download, [url])
-        await loop.run_in_executor(executor, func)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-        # Відправляємо mp3 користувачу
-        with open("audio.mp3", "rb") as f:
+        # знайдемо згенерований mp3 файл
+        audio_file = "audio.mp3"
+        for f in os.listdir("."):
+            if f.startswith("audio.") and f.endswith(".mp3"):
+                audio_file = f
+                break
+
+        with open(audio_file, "rb") as f:
             await update.message.reply_audio(f)
 
-        os.remove("audio.mp3")
-        await update.message.reply_text("✅ Готово")
+        os.remove(audio_file)
+        await update.message.reply_text("✅ Готово!")
 
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")
 
-# Створюємо та запускаємо бот
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-print("Bot started")
-app.run_polling()
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("Bot started")
+    app.run_polling()

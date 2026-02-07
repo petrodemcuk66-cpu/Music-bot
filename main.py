@@ -29,10 +29,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
         }],
-        "cookiefile": "cookies.txt",  # переконайся, що файл дійсний
-        "ffmpeg_location": r"C:\ffmpeg\bin\ffmpeg.exe",
+        "ffmpeg_location": r"C:\ffmpeg\bin\ffmpeg.exe",  # <- тут твій новий шлях
+        "cookiefile": "cookies.txt",
         "quiet": True,
-
     }
 
     try:

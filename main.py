@@ -28,11 +28,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
+            'preferredquality': '192',
         }],
-        # Використовуємо cookies для доступу до обмежених відео
         'cookiefile': 'www.youtube.com_cookies.txt',
         'quiet': True,
-        'ffmpeg_location': '/usr/bin/ffmpeg.exe'
+        'ffmpeg_location': r'C:\Users\xps\OneDrive\Desktop\music\bin\ffmpeg.exe'
     }
 
     try:

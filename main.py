@@ -28,6 +28,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "preferredcodec": "mp3",
         }],
         "quiet": True,
+        "ffmpeg_location": "./bin/ffmpeg",
         "cookiefile": "www.youtube.com_cookies.txt"
     }
 

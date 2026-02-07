@@ -1,8 +1,11 @@
 import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
+from dotenv import load_dotenv
+
 import yt_dlp
 
+load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 ALLOWED_USERS = [650258742, 935498213, 1419884435]
@@ -29,7 +32,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }],
         "cookiefile": "cookies.txt",
         "quiet": True,
-        "ffmpeg_location": "./bin/ffmpeg"
+
 
     }
 

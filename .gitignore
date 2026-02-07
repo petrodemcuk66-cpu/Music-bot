@@ -1,5 +1,5 @@
 .idea/
 .venv/
 bin/
-*cookies*.txt
+cookies.txt
 

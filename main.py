@@ -1,8 +1,8 @@
 import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
-from dotenv import load_dotenv
 import yt_dlp
+from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
@@ -29,7 +29,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
         }],
-        "cookiefile": "cookies.txt",  # якщо потрібні cookies для 18+
+        "cookiefile": "cookies.txt",  # переконайся, що файл дійсний
         "quiet": True,
     }
 
@@ -37,18 +37,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # знайдемо згенерований mp3 файл
-        audio_file = "audio.mp3"
-        for f in os.listdir("."):
-            if f.startswith("audio.") and f.endswith(".mp3"):
-                audio_file = f
-                break
-
-        with open(audio_file, "rb") as f:
+        with open("audio.mp3", "rb") as f:
             await update.message.reply_audio(f)
 
-        os.remove(audio_file)
-        await update.message.reply_text("✅ Готово!")
+        os.remove("audio.mp3")
+        await update.message.reply_text("✅ Готово")
 
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")

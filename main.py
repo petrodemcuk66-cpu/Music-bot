@@ -30,7 +30,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "preferredcodec": "mp3",
         }],
         "cookiefile": "cookies.txt",  # переконайся, що файл дійсний
+        "ffmpeg_location": r"C:\ffmpeg\bin\ffmpeg.exe",
         "quiet": True,
+
     }
 
     try:

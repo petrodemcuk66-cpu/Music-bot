@@ -1,0 +1,6 @@
+.idea/
+.venv/
+bin/
+cookies.txt
+.env
+audio*.mp3

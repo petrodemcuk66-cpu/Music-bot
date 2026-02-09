@@ -4,14 +4,16 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 from dotenv import load_dotenv
 
+# Завантаження токена з .env
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
+# Список користувачів, які можуть користуватися ботом
 ALLOWED_USERS = [650258742, 935498213, 1419884435]
 
-DOWNLOAD_DIR = "downloads"
+# Папка для завантажень
+DOWNLOAD_DIR = os.path.join(os.getcwd(), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -24,18 +26,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Це не YouTube посилання")
         return
 
-    await update.message.reply_text("⏳ Завантажую...")
+    await update.message.reply_text("⏳ Завантажую... (може зайняти 10–60 сек)")
 
     ydl_opts = {
         "format": "bestaudio",
-        "outtmpl": f"{DOWNLOAD_DIR}/%(title)s.%(ext)s",
+        "outtmpl": os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }],
-        # "ffmpeg_location": r"C:\ffmpeg\bin",  # якщо потрібно
-        # "cookiefile": "cookies.txt",  # закоментовано для тесту
+        "ffmpeg_location": r"C:\Users\xps\OneDrive\Desktop\music\ffmpeg.exe",  # шлях до ffmpeg на Windows
         "quiet": True,
         "no_warnings": True,
         "retries": 10,
@@ -60,6 +61,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.getsize(audio_file) > 50 * 1024 * 1024:
             raise ValueError("Файл > 50MB (ліміт Telegram)")
 
+        # Відправка аудіо без аргументу timeout
         with open(audio_file, "rb") as f:
             await update.message.reply_audio(
                 audio=f,
@@ -73,6 +75,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка: {e}")
 
     finally:
+        # Видаляємо файл після відправки
         if audio_file and os.path.exists(audio_file):
             try:
                 os.remove(audio_file)

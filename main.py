@@ -1,104 +1,149 @@
 import os
-import yt_dlp
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
-from dotenv import load_dotenv
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters
+)
+from yt_dlp import YoutubeDL
 
-# Завантаження токена з .env
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# Список користувачів, які можуть користуватися ботом
-ALLOWED_USERS = [650258742, 935498213, 1419884435]
+# ─── Змінні оточення ────────────────────────────────────────────────
+BOT_TOKEN    = os.getenv("BOT_TOKEN")
+WEBHOOK_URL  = os.getenv("WEBHOOK_URL")
+PORT         = int(os.getenv("PORT", "8443"))
+COOKIES_PATH = os.getenv("COOKIES_PATH", "cookies.txt")  # fallback на файл у репозиторії
 
-# Папка для завантажень
-DOWNLOAD_DIR = os.path.join(os.getcwd(), "downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+logger.info(f"DEBUG: BOT_TOKEN exists? {'yes' if BOT_TOKEN else 'NO'}")
+logger.info(f"DEBUG: WEBHOOK_URL = {WEBHOOK_URL}")
+logger.info(f"DEBUG: PORT = {PORT}")
+logger.info(f"DEBUG: COOKIES_PATH = {COOKIES_PATH}")
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ALLOWED_USERS:
-        await update.message.reply_text("❌ Немає доступу")
-        return
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не знайдено!")
+if not WEBHOOK_URL:
+    raise ValueError("WEBHOOK_URL не знайдено!")
 
-    url = update.message.text.strip()
-    if "youtube.com" not in url and "youtu.be" not in url:
-        await update.message.reply_text("❌ Це не YouTube посилання")
-        return
+# ─── Налаштування yt-dlp ────────────────────────────────────────────
+ydl_opts = {
+    'format': 'bestaudio/best',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+    'outtmpl': 'downloads/%(title)s.%(ext)s',
+    'quiet': True,
+    'no_warnings': True,
+    'continuedl': True,
+    'retries': 10,
+    'sleep_interval': 5,
+    'max_sleep_interval': 15,
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web', 'ios', 'web_safari'],
+        }
+    },
+    'user_agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip',
+}
 
-    await update.message.reply_text("⏳ Завантажую... (може зайняти 10–60 сек)")
+if COOKIES_PATH and os.path.isfile(COOKIES_PATH):
+    ydl_opts['cookiefile'] = COOKIES_PATH
+    logger.info(f"✅ Кукі підключено з: {COOKIES_PATH}")
+else:
+    logger.warning("⚠️ Кукі файл НЕ знайдено! Можливі помилки на age-restricted або bot-check відео.")
 
-    ydl_opts = {
-        "format": "bestaudio",
-        "outtmpl": os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"),
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192",
-        }],
-        "ffmpeg_location": r"C:\Users\xps\OneDrive\Desktop\music\ffmpeg.exe",  # шлях до ffmpeg на Windows
-        "quiet": True,
-        "no_warnings": True,
-        "retries": 10,
-        "noplaylist": True,
-        "ignoreerrors": True,
-    }
+os.makedirs("downloads", exist_ok=True)
 
-    audio_file = None
+# ─── Хендлери ───────────────────────────────────────────────────────
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Привіт! Кидай посилання на відео/плейлист/шортс — завантажу як mp3 🎧\n"
+        "Якщо помилка 'Sign in to confirm you’re not a bot' — онови кукі.txt"
+    )
+
+
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.args:
+        url = " ".join(context.args)
+    else:
+        if update.message.text and "http" in update.message.text:
+            url = update.message.text.strip()
+        else:
+            await update.message.reply_text("Кидай посилання 🎥")
+            return
+
+    msg = await update.message.reply_text("Завантажую... ⏳")
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                raise ValueError("Не вдалося отримати інформацію про відео")
-            base = ydl.prepare_filename(info)
-            audio_file = base.rsplit(".", 1)[0] + ".mp3"
-            ydl.download([url])
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            if not filename.endswith(".mp3"):
+                filename = filename.rsplit(".", 1)[0] + ".mp3"
 
-        if not os.path.exists(audio_file):
-            raise FileNotFoundError("MP3 файл не створився")
+        size_mb = os.path.getsize(filename) / (1024 * 1024)
+        if size_mb > 50:
+            await msg.edit_text("Файл >50 МБ — Telegram не дозволяє 😔")
+            os.remove(filename)
+            return
 
-        if os.path.getsize(audio_file) > 50 * 1024 * 1024:
-            raise ValueError("Файл > 50MB (ліміт Telegram)")
+        await msg.edit_text("Готово! Надсилаю... 🎧")
+        await update.message.reply_audio(
+            audio=open(filename, 'rb'),
+            title=info.get('title', 'audio'),
+            performer=info.get('uploader', 'Unknown'),
+            duration=int(info.get('duration', 0) or 0),
+        )
 
-        # Відправка аудіо без аргументу timeout
-        with open(audio_file, "rb") as f:
-            await update.message.reply_audio(
-                audio=f,
-                title=info.get("title", "YouTube Audio"),
-                performer=info.get("uploader", "YouTube")
-            )
-
-        await update.message.reply_text("✅ Готово!")
+        os.remove(filename)
+        await msg.delete()
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Помилка: {e}")
+        err = str(e)
+        logger.error(f"Помилка {url}: {err}", exc_info=True)
+        if "Sign in to confirm" in err or "not a bot" in err:
+            await msg.edit_text(
+                "YouTube блокує запит: 'Sign in to confirm you’re not a bot'\n\n"
+                "Рішення:\n"
+                "1. Онови cookies.txt (експортуй свіжі з браузера)\n"
+                "2. Поклади файл у папку проєкту → git add → commit → push → redeploy\n"
+                "Або спробуй інше відео."
+            )
+        else:
+            await msg.edit_text(f"Помилка: {err[:200]}")
 
-    finally:
-        # Видаляємо файл після відправки
-        if audio_file and os.path.exists(audio_file):
-            try:
-                os.remove(audio_file)
-            except:
-                pass
+
+def main():
+    logger.info("Запускаємо бот...")
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("download", download))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+
+    webhook_url_clean = WEBHOOK_URL.rstrip('/')
+    full_webhook = f"{webhook_url_clean}/{BOT_TOKEN}"
+
+    logger.info(f"Webhook: {full_webhook}")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=full_webhook,
+        allowed_updates=Update.ALL_TYPES
+    )
 
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("❌ TOKEN не знайдено")
-        exit(1)
-
-    app = (
-        ApplicationBuilder()
-        .token(TOKEN)
-        .read_timeout(30)
-        .write_timeout(180)
-        .connect_timeout(15)
-        .pool_timeout(30)
-        .build()
-    )
-
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("🤖 Bot started")
-    app.run_polling()
+    main()

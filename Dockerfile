@@ -1,19 +1,16 @@
-# Візьмемо Python 3.11
 FROM python:3.11-slim
 
-# Робоча директорія
 WORKDIR /app
 
-# Копіюємо файли
-COPY main.py .
-COPY .env .
-COPY cookies.txt /app/cookies.txt
+# Встановлюємо ffmpeg (потрібен для yt-dlp)
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Встановлюємо залежності
-RUN pip install --no-cache-dir python-telegram-bot[webhooks] yt-dlp
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY main.py .
 
 # Створюємо папку для завантажень
-RUN mkdir downloads
+RUN mkdir -p downloads
 
-# Запуск бота
 CMD ["python", "main.py"]

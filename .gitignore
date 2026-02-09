@@ -1,5 +1,8 @@
 .idea/
 .venv/
+music-clean/
+temp-clean-repo/
+downloads/
 bin/
 cookies.txt
 .env
